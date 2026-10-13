@@ -24,17 +24,17 @@ Mobile first silver jewellery catalogue with a separate owner admin page. Custom
 5. In `mobile/`, run `npm run start`, then scan the QR code using Expo Go on an Android phone, or press `a` with an Android emulator running. If Expo Go asks you to sign in, sign in to the same Expo account in the CLI (`npx expo login`) and the app. Until Supabase is configured, the app uses sample catalogue pieces so the interface can be explored.
 6. Open the mobile app hamburger menu and tap **Owner admin** to sign in and manage products, categories, or import a CSV without leaving the app. Optionally, run the separate desktop portal from `admin/` with `npm run dev`.
 
-The sample products are visual placeholders. Replace them with approved product photos, the business's actual product names, descriptions, prices or enquiry wording, and categories before launch. Update the location/contact details in `mobile/App.tsx` if they should appear in the app.
+The app includes five preview products in each category while the live catalogue has no published products. These examples are not inserted into Supabase. Replace them with approved product photos, names, prices, and categories before launch.
 
 ## Initial 800 product load
 
-In the admin portal, choose **Products → Download template**, fill one row per product in Excel or Google Sheets, and save/export as CSV UTF-8. Required: unique `sku` and `name`. `category_slug` must match the Categories page. `price` may be blank. `images` accepts one HTTPS image URL or multiple URLs separated by `|`. `is_featured` and `is_published` accept `true`/`false`; new rows default to hidden unless published is true. Upload the CSV and review its preview before importing. Existing SKUs update in batches of 200; if an upload is interrupted, uploading the same file again is safe because SKU is the upsert key.
+In the mobile app, open **Owner admin → CSV import → Get CSV template**. Fill one row per product in Excel or Google Sheets, then save/export as CSV UTF-8. The template is also at `mobile/templates/product-import-template.csv`. Required columns are `sku`, `name`, and `category_slug`; category slugs must match the Categories screen. `price` may be blank. `images` accepts one HTTPS image URL or multiple URLs separated by `|`. Replace the example image URL. `is_featured` and `is_published` accept `true`/`false`; new rows stay hidden unless published is true. Choose the CSV in the app and review its preview before importing. Existing SKUs update in batches of 200; if an upload is interrupted, uploading the same file again is safe because SKU is the upsert key.
 
 Product image URLs need to be publicly reachable HTTPS URLs. The migration also creates a public `catalog-images` Supabase Storage bucket. This first admin version does not yet include drag-and-drop photo upload or a ZIP-image-to-SKU matcher; those can be added once the client supplies the original product photo set and a SKU/image naming convention.
 
 ## Brand opening animation
 
-The native Android launch screen displays the LSP mark over the brand burgundy so the screen is not blank while Android starts React Native. After that, `mobile/App.tsx` animates the same mark in: it fades in, springs from 72% to full size, and brings in a thin ring. Keeping a static native launch screen and a short in-app animation avoids an empty flash; extend the reveal only after measuring the launch on a low-end Android phone. The native splash image lives at `mobile/assets/splash-icon.png`.
+The native launch screen uses the brand burgundy without a logo; the first branded screen is the animated LSP mark in `mobile/App.tsx`. It fades in, springs from 72% to full size, straightens, and expands a thin ring. Expo Go does not reproduce the standalone splash screen accurately; check this transition in a preview or release build.
 
 ## Production checklist
 

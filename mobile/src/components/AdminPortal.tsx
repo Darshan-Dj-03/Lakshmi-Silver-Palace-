@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { File } from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
 import { StatusBar } from 'expo-status-bar';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -14,6 +15,7 @@ type Notice = { kind: 'success' | 'error' | 'info'; message: string };
 const wine = '#791c2c';
 const ink = '#2b2022';
 const muted = '#887c7d';
+const csvTemplate = 'sku,name,category_slug,description,price,images,is_featured,is_published\nLSP-0001,Temple flower anklet,anklets,Silver anklet,1250,https://example.com/image.jpg,false,false\n';
 const slugify = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const truthy = (value?: string) => ['true', 'yes', '1', 'published', 'active'].includes((value || '').trim().toLowerCase());
 
@@ -164,6 +166,17 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const shareCsvTemplate = async () => {
+    try {
+      if (!await Sharing.isAvailableAsync()) throw new Error('Sharing is not available on this device.');
+      const templateFile = new File(Paths.cache, `lsp-product-template-${Date.now()}.csv`);
+      await templateFile.write(csvTemplate);
+      await Sharing.shareAsync(templateFile.uri, { mimeType: 'text/csv', dialogTitle: 'Save product CSV template' });
+    } catch (error) {
+      setNotice({ kind: 'error', message: error instanceof Error ? error.message : 'Could not open the share menu.' });
+    }
+  };
+
   const importCsv = async () => {
     if (!csvRows.length) return;
     const categoryIds = new Map(categories.filter(category => category.is_active).map(category => [category.slug, category.id]));
@@ -275,9 +288,9 @@ export default function AdminPortal({ onClose }: { onClose: () => void }) {
           </View>)}
         </View>}
 
-        {tab === 'import' && <View style={styles.panel}><Text style={styles.kicker}>BULK ADD OR UPDATE</Text><Text style={styles.panelTitle}>Import products from CSV</Text><Text style={styles.bodyCopy}>Choose a CSV file exported from Excel or Google Sheets. Imports support up to 800 rows and update existing products by SKU.</Text>
-          <View style={styles.csvHelp}><Text style={styles.csvHelpTitle}>CSV columns</Text><Text style={styles.csvHelpText}>sku, name, category_slug, description, price, images, is_featured, is_published</Text><Text style={styles.csvHelpText}>Use | between image URLs. Category slugs must match a collection. New products stay hidden unless is_published is true.</Text></View>
-          <Button title={csvName || 'Choose CSV file'} icon="file-text" onPress={() => void chooseCsv()} secondary/>
+        {tab === 'import' && <View style={styles.panel}><Text style={styles.kicker}>BULK ADD OR UPDATE</Text><Text style={styles.panelTitle}>Product import</Text><Text style={styles.bodyCopy}>Choose a CSV file. Up to 800 rows per import.</Text>
+          <View style={styles.csvHelp}><Text style={styles.csvHelpTitle}>Required columns</Text><Text style={styles.csvHelpText}>sku, name, category_slug, description, price, images, is_featured, is_published</Text><Text style={styles.csvHelpText}>Separate multiple image URLs with |. Set is_published to true to show an item.</Text><Text style={styles.csvExample}>LSP-0001,Temple flower anklet,anklets,Silver anklet,1250,https://example.com/image.jpg,false,false</Text></View>
+          <View style={styles.templateActions}><View style={{ flex: 1 }}><Button title="Get CSV template" icon="download" onPress={() => void shareCsvTemplate()} secondary/></View><View style={{ flex: 1 }}><Button title={csvName || 'Choose CSV'} icon="file-text" onPress={() => void chooseCsv()}/></View></View>
           {csvRows.length > 0 && <><Text style={styles.previewTitle}>{csvRows.length} rows ready · preview</Text>{csvRows.slice(0, 5).map((row, index) => <View key={`${row.sku}-${index}`} style={styles.previewRow}><Text style={styles.previewSku}>{row.sku}</Text><Text numberOfLines={1} style={styles.previewName}>{row.name}</Text><Text style={styles.previewMeta}>{row.category_slug || 'Unassigned'} · {row.price || 'No price'}</Text></View>)}<View style={{ height: 14 }}/><Button title={busy ? 'Importing…' : `Import ${csvRows.length} products`} icon="arrow-up-right" onPress={() => void importCsv()} disabled={busy}/></>}
           {!!importReport && <Text selectable style={styles.importReport}>{importReport}</Text>}
         </View>}
@@ -306,5 +319,5 @@ const styles = StyleSheet.create({
   panel: { backgroundColor: '#fffefd', borderRadius: 18, borderWidth: 1, borderColor: '#eee5e1', padding: 17, marginBottom: 13, elevation: 1, shadowColor: '#402327', shadowOpacity: .04, shadowRadius: 7, shadowOffset: { width: 0, height: 2 } }, panelHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, panelTitle: { color: ink, fontFamily: 'Georgia', fontSize: 21, marginTop: 5 }, countPill: { minWidth: 34, height: 34, paddingHorizontal: 8, textAlign: 'center', textAlignVertical: 'center', overflow: 'hidden', borderRadius: 17, backgroundColor: '#f8edeb', color: wine, fontSize: 12, fontWeight: '800' }, adminFootnote: { color: muted, fontSize: 10, textAlign: 'center', marginTop: 5 },
   productRow: { minHeight: 65, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderColor: '#f1eae7' }, productGlyph: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#f8edeb', alignItems: 'center', justifyContent: 'center' }, rowCopy: { flex: 1, minWidth: 0 }, rowTitle: { color: ink, fontSize: 12, fontWeight: '700' }, rowSub: { color: muted, fontSize: 9, marginTop: 4 }, statusPill: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14 }, statusLive: { backgroundColor: '#edf5ee' }, statusDraft: { backgroundColor: '#f8f1e6' }, statusText: { color: '#866a42', fontSize: 9, fontWeight: '700' }, statusTextLive: { color: '#53755b' },
   addCategoryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 9 }, addButton: { width: 46, height: 46, borderRadius: 13, backgroundColor: wine, alignItems: 'center', justifyContent: 'center' }, categoryRow: { minHeight: 66, borderTopWidth: 1, borderColor: '#f1eae7', flexDirection: 'row', alignItems: 'center', gap: 3 }, iconButton: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center' }, editCategory: { flex: 1, paddingVertical: 11 }, inlineActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  csvHelp: { backgroundColor: '#faf4f1', borderRadius: 13, padding: 13, marginVertical: 12 }, csvHelpTitle: { color: ink, fontSize: 11, fontWeight: '800', marginBottom: 5 }, csvHelpText: { color: muted, fontSize: 10, lineHeight: 16, marginTop: 3 }, previewTitle: { color: ink, fontSize: 11, fontWeight: '800', marginTop: 16, marginBottom: 5 }, previewRow: { paddingVertical: 9, borderBottomWidth: 1, borderColor: '#f0e9e6' }, previewSku: { color: wine, fontSize: 8, fontWeight: '800' }, previewName: { color: ink, fontSize: 11, fontWeight: '700', marginTop: 3 }, previewMeta: { color: muted, fontSize: 9, marginTop: 3 }, importReport: { color: ink, fontSize: 10, lineHeight: 16, marginTop: 12, padding: 11, backgroundColor: '#f8f3ef', borderRadius: 10 },
+  csvHelp: { backgroundColor: '#faf4f1', borderRadius: 13, padding: 13, marginVertical: 12 }, csvHelpTitle: { color: ink, fontSize: 11, fontWeight: '800', marginBottom: 5 }, csvHelpText: { color: muted, fontSize: 10, lineHeight: 16, marginTop: 3 }, csvExample: { color: '#5f4044', fontSize: 9, lineHeight: 15, marginTop: 9, fontFamily: 'monospace' }, templateActions: { flexDirection: 'row', gap: 8 }, previewTitle: { color: ink, fontSize: 11, fontWeight: '800', marginTop: 16, marginBottom: 5 }, previewRow: { paddingVertical: 9, borderBottomWidth: 1, borderColor: '#f0e9e6' }, previewSku: { color: wine, fontSize: 8, fontWeight: '800' }, previewName: { color: ink, fontSize: 11, fontWeight: '700', marginTop: 3 }, previewMeta: { color: muted, fontSize: 9, marginTop: 3 }, importReport: { color: ink, fontSize: 10, lineHeight: 16, marginTop: 12, padding: 11, backgroundColor: '#f8f3ef', borderRadius: 10 },
 });

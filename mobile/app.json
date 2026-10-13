@@ -10,12 +10,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#7A1527",
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 142
+          "backgroundColor": "#7A1527"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-sharing"
     ],
     "ios": {
       "supportsTablet": true
