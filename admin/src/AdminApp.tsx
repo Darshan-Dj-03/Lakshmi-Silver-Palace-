@@ -1,0 +1,98 @@
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import Papa from 'papaparse';
+import { ArrowDownToLine, ArrowRight, BadgeCheck, Boxes, CircleHelp, CloudUpload, FolderOpen, Gem, LogOut, Pencil, Plus, RefreshCw, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { configured, supabase } from './supabase';
+
+type Category = { id: string; name: string; slug: string; description?: string | null; is_active: boolean; sort_order: number };
+type Product = { id: string; sku: string; name: string; category_id: string | null; price: number | null; image_urls: string[]; is_published: boolean; is_active: boolean };
+type CsvProduct = { sku: string; name: string; category_slug: string; description?: string; price?: string; images?: string; is_featured?: string; is_published?: string };
+type Notice = { kind: 'success' | 'error' | 'info'; text: string };
+const slugify = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const template = 'sku,name,category_slug,description,price,images,is_featured,is_published\nLSP-0001,Temple flower anklet,anklets,Hand-finished sterling silver,3280,https://example.com/image.jpg,true,false';
+const truthy = (value?: string) => ['true', 'yes', '1', 'published', 'active'].includes((value || '').trim().toLowerCase());
+
+export default function AdminApp() {
+  const [session, setSession] = useState<any>(null);
+  const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<'overview' | 'products' | 'categories'>('overview');
+  const [notice, setNotice] = useState<Notice | null>(null); const [categories, setCategories] = useState<Category[]>([]); const [products, setProducts] = useState<Product[]>([]);
+  const [newName, setNewName] = useState(''); const [editId, setEditId] = useState(''); const [editName, setEditName] = useState(''); const [editSlug, setEditSlug] = useState('');
+  const [csvName, setCsvName] = useState(''); const [previewRows, setPreviewRows] = useState<CsvProduct[]>([]); const [importReport, setImportReport] = useState('');
+
+  const refresh = async () => {
+    const [c, p] = await Promise.all([
+      supabase.from('categories').select('*').order('sort_order').order('name'),
+      supabase.from('products').select('id,sku,name,category_id,price,image_urls,is_published,is_active').order('created_at', { ascending: false }),
+    ]);
+    if (c.error || p.error) setNotice({ kind: 'error', text: c.error?.message || p.error?.message || 'Could not load catalog.' });
+    else { setCategories(c.data || []); setProducts((p.data || []) as Product[]); }
+  };
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => subscription.unsubscribe();
+  }, []);
+  useEffect(() => { if (session) void refresh(); }, [session]);
+
+  const login = async (e: FormEvent) => { e.preventDefault(); if (!configured) { setNotice({ kind: 'error', text: 'Add the Supabase URL and publishable key to admin/.env first.' }); return; } setBusy(true); const { error } = await supabase.auth.signInWithPassword({ email, password }); setBusy(false); if (error) setNotice({ kind: 'error', text: error.message }); };
+  const admin = session?.user?.app_metadata?.role === 'admin';
+  const addCategory = async (e: FormEvent) => { e.preventDefault(); const name = newName.trim(); if (!name) return; const { error } = await supabase.from('categories').insert({ name, slug: slugify(name), sort_order: categories.length }); if (error) setNotice({ kind: 'error', text: error.message }); else { setNewName(''); setNotice({ kind: 'success', text: `${name} added.` }); await refresh(); } };
+  const saveCategory = async (e: FormEvent) => { e.preventDefault(); const { error } = await supabase.from('categories').update({ name: editName.trim(), slug: slugify(editSlug) }).eq('id', editId); if (error) setNotice({ kind: 'error', text: error.message }); else { setEditId(''); setNotice({ kind: 'success', text: 'Category updated.' }); await refresh(); } };
+  const deleteCategory = async (c: Category) => { if (!window.confirm(`Delete “${c.name}”? Products will stay in the catalogue without a category.`)) return; const { error } = await supabase.from('categories').delete().eq('id', c.id); if (error) setNotice({ kind: 'error', text: error.message }); else { setNotice({ kind: 'success', text: `${c.name} deleted.` }); await refresh(); } };
+  const toggleCategory = async (c: Category) => { const { error } = await supabase.from('categories').update({ is_active: !c.is_active }).eq('id', c.id); if (error) setNotice({ kind: 'error', text: error.message }); else await refresh(); };
+
+  const loadCsv = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return; setCsvName(file.name); setImportReport('');
+    Papa.parse<CsvProduct>(file, { header: true, skipEmptyLines: 'greedy', transformHeader: h => h.trim().toLowerCase(), complete: result => { setPreviewRows(result.data); if (result.errors.length) setNotice({ kind: 'error', text: `CSV read ${result.data.length} rows with ${result.errors.length} formatting issue(s). Check commas and quote text containing commas.` }); else setNotice({ kind: 'info', text: `Ready to review ${result.data.length} product rows.` }); }, error: error => setNotice({ kind: 'error', text: error.message }) });
+  };
+  const importCsv = async () => {
+    if (!previewRows.length) return;
+    const bySlug = new Map(categories.filter(c => c.is_active).map(c => [c.slug, c.id])); const problems: string[] = []; const cleaned: any[] = []; const seen = new Set<string>();
+    previewRows.forEach((r, i) => {
+      const line = i + 2, sku = (r.sku || '').trim(), name = (r.name || '').trim(), categorySlug = slugify(r.category_slug || '');
+      if (!sku || !name) { problems.push(`Row ${line}: SKU and name are required.`); return; }
+      if (seen.has(sku)) { problems.push(`Row ${line}: duplicate SKU “${sku}” in this CSV.`); return; } seen.add(sku);
+      if (r.category_slug?.trim() && !bySlug.has(categorySlug)) { problems.push(`Row ${line}: category_slug “${r.category_slug}” does not match an active category.`); return; }
+      const priceText = (r.price || '').trim().replace(/[₹,\s]/g, ''); const price = priceText ? Number(priceText) : null;
+      if (priceText && (!Number.isFinite(price) || price! < 0)) { problems.push(`Row ${line}: price must be zero or a positive number.`); return; }
+      const imageUrls = (r.images || '').split('|').map(s => s.trim()).filter(Boolean);
+      if (imageUrls.some(url => !/^https?:\/\//i.test(url))) { problems.push(`Row ${line}: image URLs must start with http:// or https://.`); return; }
+      cleaned.push({ sku, name, category_id: categorySlug ? bySlug.get(categorySlug) : null, description: r.description?.trim() || null, price, image_urls: imageUrls, is_featured: truthy(r.is_featured), is_published: truthy(r.is_published), is_active: true });
+    });
+    if (problems.length) { setImportReport(`Nothing imported. Fix these ${problems.length} row issue(s):\n${problems.slice(0, 15).join('\n')}${problems.length > 15 ? `\n…and ${problems.length - 15} more.` : ''}`); return; }
+    setBusy(true); let imported = 0; let failure = '';
+    for (let i = 0; i < cleaned.length; i += 200) {
+      const { error, data } = await supabase.from('products').upsert(cleaned.slice(i, i + 200), { onConflict: 'sku' }).select('id');
+      if (error) { failure = error.message; break; } imported += data?.length || 0;
+    }
+    setBusy(false);
+    if (failure) { setImportReport(`Import stopped after ${imported} rows: ${failure}`); setNotice({ kind: 'error', text: 'The catalog import was only partly completed. Fix the issue, then upload the same CSV again; SKU upsert will update existing items.' }); }
+    else { setImportReport(`Done. ${imported} products added or updated. New products stay hidden until you publish them in the CSV or edit them in the catalog.`); setNotice({ kind: 'success', text: `${imported} products imported.` }); setPreviewRows([]); setCsvName(''); await refresh(); }
+  };
+  const downloadTemplate = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([template], { type: 'text/csv' })); a.download = 'lsp-product-import-template.csv'; a.click(); URL.revokeObjectURL(a.href); };
+
+  if (!configured || !session || !admin) return <div className="login-screen"><div className="login-art"><div className="brandmark"><Gem size={30}/></div><p className="kicker">SHRI LAXMI SILVER PALACE</p><h1>Every piece has a story.<br/><i>Keep yours in order.</i></h1><p className="login-copy">A quiet space to care for your collection, one detail at a time.</p><div className="login-foot">CATALOGUE STUDIO · EST. 1998</div></div><div className="login-card"><p className="kicker">ADMIN ACCESS</p><h2>{!configured ? 'Connect your catalogue' : session && !admin ? 'Admin access required' : 'Welcome back'}</h2><p className="muted">{!configured ? 'Finish connecting Supabase, then sign in with the owner account.' : session && !admin ? 'This account is signed in but is not an administrator. Ask the project owner to assign the admin role.' : 'Sign in to manage products and collections.'}</p>
+    {configured && !session && <form onSubmit={login}><label>Email address<input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="you@business.com"/></label><label>Password<input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Your password"/></label><button className="primary wide" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}<ArrowRight size={16}/></button></form>}
+    {session && !admin && <button className="secondary wide" onClick={() => supabase.auth.signOut()}><LogOut size={15}/> Sign out</button>}
+    {!configured && <p className="setup-note">Copy <code>admin/.env.example</code> to <code>admin/.env</code> and add your project URL and publishable key.</p>}
+    {notice && <p className={`notice ${notice.kind}`}>{notice.text}</p>}<div className="security-note"><ShieldCheck size={17}/> Secure sign-in · Admin-only changes</div></div></div>;
+
+  const published = products.filter(p => p.is_published && p.is_active).length;
+  return <div className="admin-shell"><aside className="sidebar"><div className="side-brand"><div className="brandmark small"><Gem size={19}/></div><div><strong>LSP</strong><small>CATALOGUE STUDIO</small></div></div><span className="side-label">WORKSPACE</span><button onClick={() => setTab('overview')} className={tab === 'overview' ? 'side-link active' : 'side-link'}><Boxes size={17}/> Overview</button><button onClick={() => setTab('products')} className={tab === 'products' ? 'side-link active' : 'side-link'}><Gem size={17}/> Products</button><button onClick={() => setTab('categories')} className={tab === 'categories' ? 'side-link active' : 'side-link'}><FolderOpen size={17}/> Categories</button><div className="sidebar-bottom"><span className="secure-mini"><BadgeCheck size={15}/> Admin account</span><button className="side-link" onClick={() => supabase.auth.signOut()}><LogOut size={16}/> Sign out</button></div></aside>
+    <main className="admin-main"><header className="topline"><div><span className="crumb">LSP <ArrowRight size={12}/> CATALOGUE</span><h1>{tab === 'overview' ? 'Good morning' : tab === 'products' ? 'Products' : 'Categories'}<span className="period">.</span></h1></div><div className="top-actions"><span className="live-pill"><span/> Catalog live</span><button className="icon-button" onClick={() => void refresh()} title="Refresh"><RefreshCw size={16}/></button><button className="avatar" title={session.user.email}>{(session.user.email || 'A')[0].toUpperCase()}</button></div></header>
+    {notice && <div className={`notice banner ${notice.kind}`}>{notice.text}<button onClick={() => setNotice(null)}><X size={15}/></button></div>}
+    {tab === 'overview' && <><div className="welcome"><div><p className="kicker">YOUR COLLECTION, AT A GLANCE</p><h2>A good day to make something shine.</h2><p>Keep your catalogue current. Changes appear in the app as soon as they’re published.</p></div><div className="welcome-sparkle"><Gem size={62}/></div></div>
+      <div className="stats-grid"><div className="stat-card"><span>Total products</span><strong>{products.length}</strong><small>Including drafts and hidden</small><Gem size={20}/></div><div className="stat-card"><span>Published</span><strong>{published}</strong><small>Visible in the mobile app</small><BadgeCheck size={20}/></div><div className="stat-card"><span>Categories</span><strong>{categories.filter(c => c.is_active).length}</strong><small>Active collections</small><FolderOpen size={20}/></div></div>
+      <div className="dashboard-grid"><section className="panel import-panel"><div className="panel-head"><div><span className="kicker">SAVE TIME</span><h3>Bring in your catalogue</h3></div><span className="small-icon"><Upload size={18}/></span></div><p>Have a spreadsheet already? Import up to 800 pieces at once with a simple CSV. Existing SKUs are updated; new items stay hidden until you choose to publish them.</p><div className="button-row"><button className="primary" onClick={() => setTab('products')}>Import products <ArrowRight size={15}/></button><button className="text-button" onClick={downloadTemplate}><ArrowDownToLine size={15}/> Get the template</button></div><div className="csv-chips"><span>CSV or Excel saved as CSV</span><span>Products identified by SKU</span><span>Preview before saving</span></div></section>
+      <section className="panel collection-panel"><div className="panel-head"><div><span className="kicker">THE WAY THEY FIND YOU</span><h3>Collections</h3></div><button className="text-button" onClick={() => setTab('categories')}>Manage <ArrowRight size={14}/></button></div><div className="category-preview">{categories.slice(0, 6).map((c, i) => <div className="category-chip" key={c.id}><span className="chip-number">0{i + 1}</span><span>{c.name}</span><span className={c.is_active ? 'status-dot' : 'status-dot off'}/></div>)}</div><button className="add-category" onClick={() => setTab('categories')}><Plus size={15}/> Add a collection</button></section></div>
+      <div className="tip"><CircleHelp size={16}/><span><b>Just starting?</b> Create your Supabase project and run the supplied database migration. Then set up one owner account and assign it the admin role. Full instructions are in the project README.</span></div></>}
+
+    {tab === 'products' && <div className="page-grid"><section className="panel import-panel"><div className="panel-head"><div><span className="kicker">BULK ADD OR UPDATE</span><h3>Import products from CSV</h3></div><button className="text-button" onClick={downloadTemplate}><ArrowDownToLine size={15}/> Download template</button></div><p>Use one row per product. For several images, separate image URLs with <code>|</code>. Re-uploading a SKU updates that product.</p><label className="dropzone"><input type="file" accept=".csv,text/csv" onChange={loadCsv}/><CloudUpload size={29}/><strong>{csvName || 'Choose your product CSV'}</strong><span>CSV format · up to 800 products</span><em>Browse files</em></label>
+      {previewRows.length > 0 && <div className="preview-box"><div className="preview-heading"><strong>{previewRows.length} rows ready</strong><span>Check the first few before import</span></div><div className="table-scroll"><table><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Price</th><th>Live</th></tr></thead><tbody>{previewRows.slice(0, 5).map((r, i) => <tr key={i}><td>{r.sku}</td><td>{r.name}</td><td>{r.category_slug || '—'}</td><td>{r.price || '—'}</td><td>{truthy(r.is_published) ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div><button disabled={busy} className="primary import-button" onClick={() => void importCsv()}>{busy ? 'Importing…' : `Import ${previewRows.length} products`}<ArrowRight size={15}/></button></div>}
+      {importReport && <pre className="import-report">{importReport}</pre>}
+      <div className="format-help"><h4>Required columns</h4><p><code>sku</code> · <code>name</code> · <code>category_slug</code> · <code>description</code> · <code>price</code> · <code>images</code> · <code>is_featured</code> · <code>is_published</code></p><p>Category slugs must match the slugs shown on the Categories page. Leave <code>is_published</code> as false until photos and descriptions are ready.</p></div></section>
+      <section className="panel list-panel"><div className="panel-head"><div><span className="kicker">CATALOGUE</span><h3>Recently added</h3></div><span className="product-count">{products.length}</span></div><div className="product-list">{products.slice(0, 8).map(p => <div className="product-line" key={p.id}><span className="product-stamp"><Gem size={16}/></span><div><strong>{p.name}</strong><small>{p.sku} · {categories.find(c => c.id === p.category_id)?.name || 'Unassigned'}</small></div><span className={p.is_published && p.is_active ? 'live-tag' : 'draft-tag'}>{p.is_published && p.is_active ? 'Live' : 'Draft'}</span></div>)}</div></section></div>}
+
+    {tab === 'categories' && <div className="category-page"><section className="panel category-manager"><div className="panel-head"><div><span className="kicker">SHOP BY COLLECTION</span><h3>Categories</h3></div><span className="product-count">{categories.length}</span></div><p>Add, rename, hide, or remove the collections customers see in the app. Removing a category leaves its products available and marks them unassigned.</p><form className="add-row" onSubmit={addCategory}><input required value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Toe rings"/><button className="primary"><Plus size={15}/> Add category</button></form><div className="category-list">{categories.map(c => <div className="category-admin-row" key={c.id}>{editId === c.id ? <form className="edit-row" onSubmit={saveCategory}><input value={editName} onChange={e => setEditName(e.target.value)} aria-label="Category name"/><input value={editSlug} onChange={e => setEditSlug(e.target.value)} aria-label="Category slug"/><button className="save-small">Save</button><button type="button" className="cancel-small" onClick={() => setEditId('')}>Cancel</button></form> : <><span className="category-icon"><FolderOpen size={17}/></span><div className="category-details"><strong>{c.name}</strong><small>/{c.slug}</small></div><span className={c.is_active ? 'live-tag' : 'draft-tag'}>{c.is_active ? 'Visible' : 'Hidden'}</span><button className="row-action" title="Edit" onClick={() => { setEditId(c.id); setEditName(c.name); setEditSlug(c.slug); }}><Pencil size={14}/></button><button className="row-action danger" title="Delete" onClick={() => void deleteCategory(c)}><Trash2 size={15}/></button><button className="toggle" onClick={() => void toggleCategory(c)}>{c.is_active ? 'Hide' : 'Show'}</button></>}</div>)}</div></section><aside className="category-aside"><div className="aside-art"><Gem size={29}/><p>Thoughtfully grouped.<br/>Beautifully discovered.</p></div><div className="panel note-panel"><ShieldCheck size={18}/><strong>Keep category URLs tidy</strong><p>Product imports use the category slug. Renaming a slug means updating the matching CSV column for future imports.</p></div></aside></div>}
+    <footer className="admin-footer">SHRI LAXMI SILVER PALACE <span>·</span> MADE WITH CARE <span>·</span> CATALOGUE STUDIO</footer></main></div>;
+}

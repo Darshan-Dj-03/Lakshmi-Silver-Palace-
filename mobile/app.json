@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Lakshmi Silver Palace",
+    "slug": "lakshmi-silver-palace",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#7A1527",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 142
+        }
+      ],
+      "expo-font"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.lakshmisilverpalace.catalog",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#7A1527",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+node_modules/
+**/node_modules/
+admin/.env
+mobile/.env
+mobile/.expo/
+mobile/dist/
+admin/dist/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+*.aab
+*.apk
+supabase/.temp/
+*.tsbuildinfo
