@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { supabase, isSupabaseConfigured } from './src/lib/supabase';
+import AdminPortal from './src/components/AdminPortal';
 
 type Category = { id: string; name: string; slug: string; image_url?: string | null };
 type Product = { id: string; sku?: string; name: string; category_id?: string | null; description?: string; price?: number | null; image_urls: string[]; is_featured?: boolean; is_published?: boolean };
@@ -43,6 +44,7 @@ export default function App() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [favoritesReady, setFavoritesReady] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [selected, setSelected] = useState<Product | null>(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [tab, setTab] = useState('Home');
@@ -93,16 +95,6 @@ export default function App() {
 
   const chooseCategory = (category: Category) => { setActiveCategory(category.slug); setDrawer(false); setTab('Home'); };
   const openWhatsApp = () => Linking.openURL('https://wa.me/message/55KV75D2E2BSB1');
-  const openAdminPortal = async () => {
-    setDrawer(false);
-    const portalUrl = process.env.EXPO_PUBLIC_ADMIN_URL?.trim();
-    if (!portalUrl) {
-      Alert.alert('Admin portal not connected yet', 'The admin portal is a separate website. Add its URL as EXPO_PUBLIC_ADMIN_URL in mobile/.env, then restart Expo.');
-      return;
-    }
-    try { await Linking.openURL(portalUrl); }
-    catch { Alert.alert('Could not open the admin portal', 'Please check the portal URL and try again.'); }
-  };
   const productCard = ({ item, index }: { item: Product; index: number }) => (
     <Pressable onPress={() => setSelected(item)} style={[styles.productCard, { marginRight: index % 2 === 0 ? 7 : 0, marginLeft: index % 2 ? 7 : 0 }]}>
       <View style={styles.productPhotoWrap}>
@@ -117,6 +109,8 @@ export default function App() {
       <Text style={styles.productHint}>View details <Feather name="arrow-up-right" size={11} /></Text>
     </Pressable>
   );
+
+  if (adminOpen) return <AdminPortal onClose={() => setAdminOpen(false)} />;
 
   return <View style={styles.app}>
     <ExpoStatusBar style="dark" />
@@ -175,7 +169,7 @@ export default function App() {
         <View style={styles.drawerTop}><BrandMark size={48} /><Pressable onPress={() => setDrawer(false)} style={styles.closeButton}><Feather name="x" size={21} color={ink} /></Pressable></View><Text style={styles.drawerTitle}>A world of silver</Text><Text style={styles.drawerCaption}>EXPLORE OUR COLLECTION</Text>
         {categories.map(c => <Pressable key={c.id} style={styles.drawerLink} onPress={() => chooseCategory(c)}><Text style={styles.drawerLinkText}>{c.name}</Text><Feather name="arrow-up-right" size={16} color={wine} /></Pressable>)}
         <View style={{ flex: 1 }} /><Pressable style={styles.drawerContact} onPress={openWhatsApp}><Feather name="message-circle" size={18} color="#fff"/><Text style={styles.drawerContactText}> Talk to our team</Text></Pressable>
-        <Pressable accessibilityRole="link" style={styles.adminPortalLink} onPress={() => void openAdminPortal()}><Feather name="lock" size={14} color={muted}/><Text style={styles.adminPortalText}>Admin portal</Text><Feather name="arrow-up-right" size={14} color={muted}/></Pressable>
+        <Pressable accessibilityRole="button" style={styles.adminPortalLink} onPress={() => { setDrawer(false); setAdminOpen(true); }}><Feather name="lock" size={14} color={muted}/><Text style={styles.adminPortalText}>Owner admin</Text><Feather name="arrow-right" size={14} color={muted}/></Pressable>
         <Text style={styles.drawerSmall}>MAHAJAN COMPLEX · SILVER SINCE 1998</Text>
       </View></View>
     </Modal>
