@@ -21,8 +21,8 @@ Mobile first silver jewellery catalogue with a separate owner admin page. Custom
    where email = 'owner@example.com';
    ```
 
-5. In `mobile/`, run `npm start`, then scan the QR code using Expo Go on an Android phone, or press `a` with an Android emulator running. If Expo Go asks you to sign in, sign in to the same Expo account in the CLI (`npx expo login`) and the app. Until Supabase is configured, the app uses sample catalogue pieces so the interface can be explored.
-6. In `admin/`, run `npm run dev` and open the local URL Vite prints. Sign in with the owner login.
+5. In `mobile/`, run `npm run start`, then scan the QR code using Expo Go on an Android phone, or press `a` with an Android emulator running. If Expo Go asks you to sign in, sign in to the same Expo account in the CLI (`npx expo login`) and the app. Until Supabase is configured, the app uses sample catalogue pieces so the interface can be explored.
+6. In `admin/`, run `npm run dev` and open the local URL Vite prints. Sign in with the owner login. The mobile hamburger menu includes **Admin portal**; for production, deploy `admin/` to HTTPS hosting and set `EXPO_PUBLIC_ADMIN_URL` in `mobile/.env` to that deployed URL. Restart Expo after changing `.env`. For physical-device local testing, use your computer's LAN IP and Vite's port (usually `http://<computer-lan-ip>:5173`); `localhost` on a phone points to the phone itself. On the Android emulator, use `http://10.0.2.2:5173`.
 
 The sample products are visual placeholders. Replace them with approved product photos, the business's actual product names, descriptions, prices or enquiry wording, and categories before launch. Update the location/contact details in `mobile/App.tsx` if they should appear in the app.
 
