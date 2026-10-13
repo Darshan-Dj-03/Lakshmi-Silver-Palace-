@@ -4,8 +4,8 @@ Mobile first silver jewellery catalogue with a separate owner admin page. Custom
 
 ## What is here
 
-- `mobile/` — Expo + React Native Android app. It opens with an animated LSP mark and includes search, collections, two column product browsing, saved pieces, product details, and WhatsApp enquiries.
-- `admin/` — small responsive web portal for an owner account. It supports category add, rename, hide, and delete, and CSV product import/update by SKU.
+- `mobile/` — Expo + React Native Android app. It opens with an animated LSP mark and includes search, collections, two column product browsing, saved pieces, product details, WhatsApp enquiries, and an in-app owner admin section.
+- `admin/` — optional responsive desktop web portal for an owner account. It supports category management and CSV product import/update by SKU.
 - `supabase/migrations/` — PostgreSQL catalog schema, Row Level Security rules, and public product image storage policies.
 
 ## Run locally
@@ -22,7 +22,7 @@ Mobile first silver jewellery catalogue with a separate owner admin page. Custom
    ```
 
 5. In `mobile/`, run `npm run start`, then scan the QR code using Expo Go on an Android phone, or press `a` with an Android emulator running. If Expo Go asks you to sign in, sign in to the same Expo account in the CLI (`npx expo login`) and the app. Until Supabase is configured, the app uses sample catalogue pieces so the interface can be explored.
-6. In `admin/`, run `npm run dev` and open the local URL Vite prints. Sign in with the owner login. The mobile hamburger menu includes **Admin portal**; for production, deploy `admin/` to HTTPS hosting and set `EXPO_PUBLIC_ADMIN_URL` in `mobile/.env` to that deployed URL. Restart Expo after changing `.env`. For physical-device local testing, use your computer's LAN IP and Vite's port (usually `http://<computer-lan-ip>:5173`); `localhost` on a phone points to the phone itself. On the Android emulator, use `http://10.0.2.2:5173`.
+6. Open the mobile app hamburger menu and tap **Owner admin** to sign in and manage products, categories, or import a CSV without leaving the app. Optionally, run the separate desktop portal from `admin/` with `npm run dev`.
 
 The sample products are visual placeholders. Replace them with approved product photos, the business's actual product names, descriptions, prices or enquiry wording, and categories before launch. Update the location/contact details in `mobile/App.tsx` if they should appear in the app.
 
@@ -40,8 +40,8 @@ The native Android launch screen displays the LSP mark over the brand burgundy s
 
 - Confirm the final package ID (`com.lakshmisilverpalace.catalog`) before the first Play Store upload; Google Play package IDs cannot be renamed after the app is created.
 - Replace all sample product data and imagery; confirm price display, category names, WhatsApp destination, address, app name, icon, privacy policy URL, and store listing text with the business.
-- Deploy `admin/` to an HTTPS host, restrict admin account creation to the owner, and use Supabase Auth MFA for the owner where available. Keep the database backups and project billing/region under the business owner's account.
-- Before submitting to Google Play, add the business contact email in `admin/public/privacy.html`, verify the policy with the business, then host the admin site and this page over HTTPS. Put the resulting public policy URL in Play Console.
+- Restrict admin account creation to the owner, and use Supabase Auth MFA for the owner where available. Keep the database backups and project billing/region under the business owner's account.
+- Before submitting to Google Play, add the business contact email to the privacy policy, verify it with the business, host it over HTTPS, and put its public URL in Play Console.
 - Review the RLS policies and test both anonymous catalogue access and a non-admin account before launch. Keep the Supabase service-role key out of the mobile app, admin bundle, and Git.
 - Complete the privacy policy, Data safety and content rating forms, and use a Play App Signing Android App Bundle. Catalogue images are public; do not upload private customer data.
 - For a personal Play developer account created after 13 November 2023, Google's current guidance requires a closed test with at least 12 opted-in testers for 14 continuous days before requesting production access. Account type and current Play Console steps may change; check the owner's Play Console at submission time.
