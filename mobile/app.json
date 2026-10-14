@@ -10,7 +10,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#7A1527"
+          "backgroundColor": "#FBF8F5",
+          "image": "./assets/splash-clear.png",
+          "imageWidth": 1
         }
       ],
       "expo-font",
